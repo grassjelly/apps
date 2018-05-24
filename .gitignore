@@ -20,4 +20,5 @@ cscope.out
 /romfs.img
 /boot_romfsimg.h
 /*/*/.built
+/micrortps/micro-RTPS-client
 

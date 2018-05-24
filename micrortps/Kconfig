@@ -1,0 +1,23 @@
+# Kconfig for Micro RTPS
+
+menu "Micro RTPS"
+
+config MICRORTPS_CLIENT
+    bool "Enable Micro RTPS Client"
+    default n
+    ---help---
+        Enable support for Micro RTPS Client
+
+if MICRORTPS_CLIENT
+
+comment "Micro RTPS Options"
+
+config MICRORTPS_VERBOSE_OUTPUT
+        bool "Enable verbose output"
+        default y
+        ---help---
+            Enable verbose output usefull for debugging.
+
+endif # MICRORTPS_CLIENT
+
+endmenu # Micro RTPS
