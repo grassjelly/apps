@@ -37,10 +37,10 @@ all: .built
 	$(call DELDIR, $(MICRO_RTPS_DIR)/build/extracted)
 	$(Q) mkdir $(MICRO_RTPS_DIR)/build/extracted
 	$(Q) cd $(MICRO_RTPS_DIR)/build/extracted; \
-		arm-none-eabi-ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_client.a; \
-		arm-none-eabi-ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrocdr.a; \
-		arm-none-eabi-ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_transport.a
-	$(Q) arm-none-eabi-ar -qc $(BIN) $(MICRO_RTPS_DIR)/build/extracted/*.o
+		$(ARCROSSDEV)ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_client.a; \
+		$(ARCROSSDEV)ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrocdr.a; \
+		$(ARCROSSDEV)ar -x $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_transport.a
+	$(Q) $(AR) $(BIN) $(MICRO_RTPS_DIR)/build/extracted/*.o
 	$(Q) touch .built
 
 cmakecompile: $(MICRO_RTPS_DIR) $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_client.a
@@ -53,6 +53,7 @@ $(MICRO_RTPS_INSTALL_DIR)/lib/libmicrortps_client.a:
 	$(Q) mkdir micro-RTPS-client/build
 	$(Q) cd micro-RTPS-client/build; \
 		cmake -DCMAKE_TOOLCHAIN_FILE=$(MICRO_RTPS_DIR)/../toolchain.cmake \
+			-DCROSSDEV=$(CROSSDEV) \
 			-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 			-DVERBOSE=$(VERBOSE_OPT) \
 			-DCHECK_ENDIANNESS=OFF \
