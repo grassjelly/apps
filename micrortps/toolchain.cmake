@@ -28,7 +28,7 @@ endforeach()
 
 CMAKE_FORCE_C_COMPILER(${CROSSDEV}gcc GNU)
 
-include_directories(SYSTEM /root/nuttx/include)
+include_directories(SYSTEM /home/juan/nuttx/nuttx/include)
 add_compile_options(
     -std=c99 
     ${ARCH_CPU_FLAGS}
