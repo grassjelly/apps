@@ -1,294 +1,48 @@
-/****************************************************************************
- * examples/micrortps/client_main.c
- *
- * Copyright 2017 Proyectos y Sistemas de Mantenimiento SL (eProsima).
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- ****************************************************************************/
+#include "HelloWorld.h"
+#include <micrortps/client/xrce_client.h>
 
-/****************************************************************************
- * Included Files
- ****************************************************************************/
-
-#include <nuttx/config.h>
-
-#include "Shape.h"
 #include <stdio.h>
 
-#include <sys/time.h>
+#define HELLO_WORLD_TOPIC 1
 
-#ifdef _WIN32
-#include <Winsock2.h>
-#else
-#include <sys/select.h>
-#endif
-
-// ----------------------------------------------------
-//    App client
-// ----------------------------------------------------
-#define XML_BUFFER_SIZE 1024
-#define SHAPE_TOPIC 0x01
-
-
-// XML profiles
-const char* topic_xml = {"<dds><topic><kind>WITH_KEY</kind><name>Square</name><dataType>ShapeType</dataType></topic>>/dds>"};
-const char* datawriter_xml = {"<profiles><publisher profile_name=\"default_xrce_publisher_profile\"><topic><kind>NO_KEY</kind><name>HelloWorldTopic</name><dataType>HelloWorld</dataType><historyQos><kind>KEEP_LAST</kind><depth>5</depth></historyQos><durability><kind>TRANSIENT_LOCAL</kind></durability></topic></publisher></profiles>"};
-const char* datareader_xml = {"<profiles><subscriber profile_name=\"default_xrce_subscriber_profile\"><topic><kind>NO_KEY</kind><name>HelloWorldTopic</name><dataType>HelloWorld</dataType><historyQos><kind>KEEP_LAST</kind><depth>5</depth></historyQos><durability><kind>TRANSIENT_LOCAL</kind></durability></topic></subscriber></profiles>"};
-
-void help(void)
-{
-    printf("Usage: program <command>\n");
-    printf("List of commands:\n");
-    printf("    serial device\n");
-    printf("    udp agent_ip agent_port\n");
-    printf("    help\n");
-}
-
-void list_commands(void)
-{
-    printf("usage: <command> [<args>]\n");
-    printf("    create_session:                                                  Creates a Session\n");
-    printf("    create_participant <participant id>:                             Creates a new Participant on the current session\n");
-    printf("    create_topic       <topic id> <participant id>:                  Register new Topic using <participant id> participant\n");
-    printf("    create_publisher   <publisher id> <participant id>:              Creates a Publisher on <participant id> participant\n");
-    printf("    create_subscriber  <subscriber id> <participant id>:             Creates a Subscriber on <participant id> participant\n");
-    printf("    create_datawriter  <datawriter id> <publisher id>:               Creates a DataWriter on the publisher <publisher id>\n");
-    printf("    create_datareader  <datareader id> <subscriber id>:              Creates a DataReader on the subscriber <subscriber id>\n");
-    printf("    write_data <datawriter id> [<stream id> <color> <x> <y> <size>]: Write data into a <stream id> using <data writer id> DataWriter\n");
-    printf("    read_data <datareader id> <stream id>:                           Read data from a <stream id> using <data reader id> DataReader\n");
-    printf("    delete <id>:                                                     Removes object with <id> identifier\n");
-    printf("    delete_session:                                                  Deletes a session\n");
-    printf("    exit:                                                            Close program\n");
-    printf("    h, help:                                                         Shows this message\n");
-}
-
-int check_input(void)
-{
-    struct timeval tv = {0, 0};
-    fd_set fds = {0};
-    FD_ZERO(&fds);
-    FD_SET(0, &fds); //STDIN 0
-    select(1, &fds, NULL, NULL, &tv);
-    return FD_ISSET(0, &fds);
-}
-
-void printl_ShapeType_topic(const ShapeType* shape_topic)
-{
-    printf("%s[<SHAPE> | %s | x: %u | y: %u | size: %u]%s\n",
-            "\x1B[1;34m",
-            shape_topic->color,
-            shape_topic->x,
-            shape_topic->y,
-            shape_topic->shapesize,
-            "\x1B[0m");
-}
-
-void on_topic(ObjectId id, MicroBuffer *message, void* args)
-{
-    (void) args;
-    if(SHAPE_TOPIC ==  id.data[0])
-    {
-        ShapeType topic;
-        deserialize_ShapeType_topic(message, &topic);
-        printf("Receiving... ");
-        printl_ShapeType_topic(&topic);
-    }
-}
-
-void check_and_print_error(Session* session)
+void check_and_print_error(Session* session, const char* where)
 {
     if(session->last_status_received)
     {
         if(session->last_status.status == STATUS_OK)
         {
-            printf("%s[OK]%s\n", "\x1B[1;32m", "\x1B[0m");
+            return; //All things go well
         }
         else
         {
-            printf("%s[Status error: %i]%s\n", "\x1B[1;31m", session->last_status.status, "\x1B[0m");
+            printf("%sStatus error (%i)%s", "\x1B[1;31m", session->last_status.status, "\x1B[0m");
         }
     }
     else
     {
-        printf("%s[Connection error]%s\n", "\x1B[1;31m", "\x1B[0m");
+        printf("%sConnection error", "\x1B[1;31m");
     }
+
+    printf(" at %s%s\n", where, "\x1B[0m");
+    exit(1);
 }
 
-size_t read_file(const char *file_name, char* data_file, size_t buf_size)
+void on_topic(ObjectId id, MicroBuffer* serialized_topic, void* args)
 {
-    FILE *fp = fopen(file_name, "r");
-    size_t length = 0;
-    if (fp != NULL)
+    (void) args;
+    switch(id.data[0])
     {
-        length = fread(data_file, sizeof(char), buf_size, fp);
-        if (length == 0)
+        case HELLO_WORLD_TOPIC:
         {
-            printf("Error reading %s\n", file_name);
+            HelloWorld topic;
+            deserialize_HelloWorld_topic(serialized_topic, &topic);
+            printf("Read topic: %s, count: %i\n", topic.message, topic.index);
+            break;
         }
 
-        if(length < buf_size)
-        {
-            data_file[length] = '\0';
-        }
-        fclose(fp);
+        default:
+            break;
     }
-    else
-    {
-        printf("Error opening %s\n", file_name);
-    }
-
-    return length;
-}
-
-bool compute_command(const char* command, Session* session)
-{
-    char name[128];
-    uint8_t id_pre = 0;
-    uint8_t id_related_pre = 0;
-    char color[128];
-    uint32_t x;
-    uint32_t y;
-    uint32_t shapesize;
-    int length = sscanf(command, "%s %hhu %hhu %s %u %u %u", name, &id_pre, &id_related_pre, color, &x, &y, &shapesize);
-    if(length == 4 && color[0] == '\0')
-    {
-        length = 3; //some implementations of sscanfs add 1 to length if color is empty.
-    }
-
-    if(strcmp(name, "create_session") == 0)
-    {
-        init_session_sync(session);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_participant") == 0 && length == 2)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_PARTICIPANT;
-        create_participant_sync_by_ref(session, id, "default_participant", false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_topic") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_TOPIC;
-        ObjectId id_related;
-        id_related.data[0] = id_related_pre;
-        id_related.data[1] = OBJK_PARTICIPANT;
-        create_topic_sync_by_xml(session, id, topic_xml, id_related, false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_publisher") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_PUBLISHER;
-        ObjectId id_related;
-        id_related.data[0] = id_related_pre;
-        id_related.data[1] = OBJK_PARTICIPANT;
-        create_publisher_sync_by_xml(session, id, "", id_related, false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_subscriber") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_SUBSCRIBER;
-        ObjectId id_related;
-        id_related.data[0] = id_related_pre;
-        id_related.data[1] = OBJK_PARTICIPANT;
-        create_subscriber_sync_by_xml(session, id, "", id_related, false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_datawriter") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_DATAWRITER;
-        ObjectId id_related;
-        id_related.data[0] = id_related_pre;
-        id_related.data[1] = OBJK_PUBLISHER;
-        create_datawriter_sync_by_xml(session, id, datawriter_xml, id_related, false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "create_datareader") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_DATAREADER;
-        ObjectId id_related;
-        id_related.data[0] = id_related_pre;
-        id_related.data[1] = OBJK_SUBSCRIBER;
-        create_datareader_sync_by_xml(session, id, datareader_xml, id_related, false, false);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "write_data") == 0 && length >= 3)
-    {
-        ShapeType topic = {"GREEN", 100 , 100, 50};
-        if (length == 7)
-        {
-            topic.color = color;
-            topic.x = x;
-            topic.y = y;
-            topic.shapesize = shapesize;
-        }
-
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_DATAWRITER;
-        write_ShapeType(session, id, id_related_pre, &topic);
-        printf("Sending... ");
-        printl_ShapeType_topic(&topic);
-    }
-    else if(strcmp(name, "read_data") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = OBJK_DATAREADER;
-        read_data_sync(session, id, id_related_pre);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "delete") == 0 && length == 3)
-    {
-        ObjectId id;
-        id.data[0] = id_pre;
-        id.data[1] = id_related_pre;
-        delete_object_sync(session, id);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "delete_session") == 0)
-    {
-        close_session_sync(session);
-        check_and_print_error(session);
-    }
-    else if(strcmp(name, "exit") == 0)
-    {
-        free_session(session);
-        return false;
-    }
-    else if(strcmp(name, "h") == 0 || strcmp(name, "help") == 0)
-    {
-        list_commands();
-    }
-    else
-    {
-        printf("%sUnknown command error%s\n", "\x1B[1;31m", "\x1B[0m");
-        list_commands();
-    }
-
-    return true;
 }
 
 #ifdef CONFIG_BUILD_KERNEL
@@ -297,14 +51,12 @@ int main(int args, FAR char *argv[])
 int client_main(int args, char *argv[])
 #endif
 {
-    printf("<< SHAPES DEMO XRCE CLIENT >>\n");
-
     Session my_session;
     ClientKey key = {{0xAA, 0xBB, 0xCC, 0xDD}};
     if(args == 3 && strcmp(argv[1], "serial") == 0)
     {
         const char* device = argv[2];
-        if(!new_serial_session(&my_session, 0x01, key, device, NULL, NULL))
+        if(!new_serial_session(&my_session, 0x01, key, device, on_topic, NULL))
         {
             printf("%sCan not create serial connection%s\n", "\x1B[1;31m", "\x1B[0m");
             return 1;
@@ -331,29 +83,76 @@ int client_main(int args, char *argv[])
     }
     else
     {
-        help();
+        printf("Usage: program <command>\n");
+        printf("List of commands:\n");
+        printf("    serial device\n");
+        printf("    udp agent_ip agent_port\n");
+        printf("    help\n");
         return 1;
     }
 
-    // Waiting user commands
-    char command_stdin_line[256];
-    bool running = true;
-    while (running)
+    /* Init session. */
+    init_session_sync(&my_session);
+    check_and_print_error(&my_session, "init session");
+
+    /* Create participant. */
+    ObjectId participant_id = {{0x00, OBJK_PARTICIPANT}};
+    create_participant_sync_by_ref(&my_session, participant_id, "default_participant", false, false);
+    check_and_print_error(&my_session, "create participant");
+
+    /* Create topic. */
+    const char* topic_xml = {"<dds><topic><name>HelloWorldTopic</name><dataType>HelloWorld</dataType></topic></dds>"};
+    ObjectId topic_id = {{0x00, OBJK_TOPIC}};
+    create_topic_sync_by_xml(&my_session, topic_id, topic_xml, participant_id, false, false);
+    check_and_print_error(&my_session, "create topic");
+
+    /* Create publisher. */
+    const char* publisher_xml = {"<publisher name=\"MyPublisher\""};
+    ObjectId publisher_id = {{HELLO_WORLD_TOPIC, OBJK_PUBLISHER}};
+    create_publisher_sync_by_xml(&my_session, publisher_id, publisher_xml, participant_id, false, false);
+    check_and_print_error(&my_session, "create publisher");
+
+    /* Create data writer. */
+    const char* datawriter_xml = {"<profiles><publisher profile_name=\"default_xrce_publisher_profile\"><topic><kind>NO_KEY</kind><name>HelloWorldTopic</name><dataType>HelloWorld</dataType><historyQos><kind>KEEP_LAST</kind><depth>5</depth></historyQos><durability><kind>TRANSIENT_LOCAL</kind></durability></topic></publisher></profiles>"};
+    ObjectId datawriter_id = {{HELLO_WORLD_TOPIC, OBJK_DATAWRITER}};
+    create_datawriter_sync_by_xml(&my_session, datawriter_id, datawriter_xml, publisher_id, false, false);
+    check_and_print_error(&my_session, "create datawriter");
+
+    /* Create subscriber. */
+    const char* subscriber_xml = {"<publisher name=\"MySubscriber\""};
+    ObjectId subscriber_id = {{HELLO_WORLD_TOPIC, OBJK_SUBSCRIBER}};
+    create_subscriber_sync_by_xml(&my_session, subscriber_id, subscriber_xml, participant_id, false, false);
+    check_and_print_error(&my_session, "create subscriber");
+
+    /* Create data writer. */
+    const char* datareader_xml = {"<profiles><subscriber profile_name=\"default_xrce_subscriber_profile\"><topic><kind>NO_KEY</kind><name>HelloWorldTopic</name><dataType>HelloWorld</dataType><historyQos><kind>KEEP_LAST</kind><depth>5</depth></historyQos><durability><kind>TRANSIENT_LOCAL</kind></durability></topic></subscriber></profiles>"};
+    ObjectId datareader_id = {{HELLO_WORLD_TOPIC, OBJK_DATAREADER}};
+    create_datareader_sync_by_xml(&my_session, datareader_id, datareader_xml, subscriber_id, false, false);
+    check_and_print_error(&my_session, "create datareader");
+
+    uint32_t counter = 0;
+    while(true)
     {
-        if (!check_input())
+        HelloWorld topic;
+	topic.index = counter;
+	topic.message = "Hello DDS World!";
+        if(write_HelloWorld(&my_session, datawriter_id, STREAMID_BUILTIN_RELIABLE, &topic))
         {
-            run_communication(&my_session);
-        }
-        else if (fgets(command_stdin_line, 256, stdin))
-        {
-            if (!compute_command(command_stdin_line, &my_session))
-            {
-                running = false;
-            }
+            counter++;
+            printf("Write topic: %s, count: %i\n", topic.message, topic.index);
         }
 
-        ms_sleep(100);
+        read_data_sync(&my_session, datareader_id, STREAMID_BUILTIN_RELIABLE);
+        check_and_print_error(&my_session, "read data");
+
+        run_communication(&my_session);
+        ms_sleep(2000);
     }
+
+    close_session_sync(&my_session);
+    check_and_print_error(&my_session, "close session");
+
+    free_session(&my_session);
 
     return 0;
 }
