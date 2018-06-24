@@ -1,0 +1,3 @@
+[submodule "examples/linorobot2"]
+	path = examples/linorobot2
+	url = https://github.com/linorobot2/linorobot2
